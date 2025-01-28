@@ -1,21 +1,21 @@
 #include "flutter_ar_vr_plugin.h"
 
-// This must be included before many other Windows headers.
+// Include Windows headers.
 #include <windows.h>
-
-// For getPlatformVersion; remove unless needed for your plugin implementation.
 #include <VersionHelpers.h>
 
+// Include Flutter plugin headers.
 #include <flutter/method_channel.h>
 #include <flutter/plugin_registrar_windows.h>
 #include <flutter/standard_method_codec.h>
 
 #include <memory>
 #include <sstream>
+#include <stdexcept>
 
 namespace flutter_ar_vr {
 
-// static
+// Static: Register the plugin with the registrar.
 void FlutterArVrPlugin::RegisterWithRegistrar(
     flutter::PluginRegistrarWindows *registrar) {
   auto channel =
@@ -37,10 +37,34 @@ FlutterArVrPlugin::FlutterArVrPlugin() {}
 
 FlutterArVrPlugin::~FlutterArVrPlugin() {}
 
+void FlutterArVrPlugin::InitializeVr(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> &result) {
+  try {
+    // Check if required packages or runtime is available.
+    if (!IsWindows10OrGreater()) {
+      throw std::runtime_error("Windows 10 or higher is required for VR functionality.");
+    }
+
+    // Add initialization logic for the VR SDK (OpenXR, OpenVR, etc.).
+    bool vr_initialized = false;
+    // Example VR initialization placeholder:
+    // vr_initialized = InitVrSdk();
+
+    if (!vr_initialized) {
+      throw std::runtime_error("Failed to initialize the VR SDK. Ensure the required packages are installed.");
+    }
+
+    result->Success(flutter::EncodableValue("VR Initialized Successfully"));
+  } catch (const std::exception &e) {
+    result->Error("VR_INITIALIZATION_ERROR", e.what());
+  }
+}
+
 void FlutterArVrPlugin::HandleMethodCall(
     const flutter::MethodCall<flutter::EncodableValue> &method_call,
     std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
-  if (method_call.method_name().compare("getPlatformVersion") == 0) {
+  if (method_call.method_name().compare("initialize") == 0) {
+    InitializeVr(result);
+  } else if (method_call.method_name().compare("getPlatformVersion") == 0) {
     std::ostringstream version_stream;
     version_stream << "Windows ";
     if (IsWindows10OrGreater()) {

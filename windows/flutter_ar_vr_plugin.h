@@ -16,6 +16,8 @@ class FlutterArVrPlugin : public flutter::Plugin {
 
   virtual ~FlutterArVrPlugin();
 
+  void InitializeVr(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> &result);
+
   // Disallow copy and assign.
   FlutterArVrPlugin(const FlutterArVrPlugin&) = delete;
   FlutterArVrPlugin& operator=(const FlutterArVrPlugin&) = delete;
