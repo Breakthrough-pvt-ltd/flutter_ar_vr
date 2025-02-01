@@ -11,7 +11,21 @@ class MethodChannelFlutterArVr extends FlutterArVrPlatform {
 
   @override
   Future<String?> getPlatformVersion() async {
-    final version = await methodChannel.invokeMethod<String>('getPlatformVersion');
+    final version =
+        await methodChannel.invokeMethod<String>('getPlatformVersion');
     return version;
+  }
+
+  @override
+  Future<String?> initializeVr() async {
+    try {
+      final result = await methodChannel.invokeMethod<String>('initialize');
+      return result ?? 'Unknown VR status';
+    } on PlatformException catch (e) {
+      throw PlatformException(
+        code: 'VR_INITIALIZATION_ERROR',
+        message: e.message,
+      );
+    }
   }
 }
