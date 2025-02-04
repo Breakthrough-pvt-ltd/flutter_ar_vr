@@ -26,4 +26,8 @@ abstract class FlutterArVrPlatform extends PlatformInterface {
   Future<String?> getPlatformVersion() {
     throw UnimplementedError('platformVersion() has not been implemented.');
   }
+
+  Future<String?> initializeVr() {
+    throw UnimplementedError('initializeVr() has not been implemented.');
+  }
 }

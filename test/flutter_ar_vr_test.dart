@@ -7,9 +7,14 @@ import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 class MockFlutterArVrPlatform
     with MockPlatformInterfaceMixin
     implements FlutterArVrPlatform {
-
   @override
   Future<String?> getPlatformVersion() => Future.value('42');
+
+  @override
+  Future<String?> initializeVr() {
+    // TODO: implement initializeVr
+    throw UnimplementedError();
+  }
 }
 
 void main() {
