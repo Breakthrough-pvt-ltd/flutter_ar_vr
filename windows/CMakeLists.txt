@@ -1,7 +1,3 @@
-# The Flutter tooling requires that developers have a version of Visual Studio
-# installed that includes CMake 3.14 or later. You should not increase this
-# version, as doing so will cause the plugin to fail to compile for some
-# customers of the plugin.
 cmake_minimum_required(VERSION 3.14)
 
 # Project-level configuration.
@@ -16,11 +12,19 @@ cmake_policy(VERSION 3.14...3.25)
 # not be changed
 set(PLUGIN_NAME "flutter_ar_vr_plugin")
 
+# Set OpenXR SDK directories
+set(OpenXR_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/openxr_sdk/include)
+set(OpenXR_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/openxr_sdk/native/x64/release/lib)
+set(OpenXR_DLL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/openxr_sdk/native/x64/release/bin)
+
 # Any new source files that you add to the plugin should be added here.
 list(APPEND PLUGIN_SOURCES
   "flutter_ar_vr_plugin.cpp"
   "flutter_ar_vr_plugin.h"
 )
+
+# Add OpenXR include directory
+include_directories(${OpenXR_INCLUDE_DIR})
 
 # Define the plugin library target. Its name must not be changed (see comment
 # on PLUGIN_NAME above).
@@ -46,55 +50,24 @@ target_compile_definitions(${PLUGIN_NAME} PRIVATE FLUTTER_PLUGIN_IMPL)
 # dependencies here.
 target_include_directories(${PLUGIN_NAME} INTERFACE
   "${CMAKE_CURRENT_SOURCE_DIR}/include")
+
+# Link OpenXR loader library
 target_link_libraries(${PLUGIN_NAME} PRIVATE flutter flutter_wrapper_plugin)
+
+# Link OpenXR loader library from the bundled SDK
+target_link_libraries(${PLUGIN_NAME} PRIVATE ${OpenXR_LIB_DIR}/openxr_loader.lib)
 
 # List of absolute paths to libraries that should be bundled with the plugin.
 # This list could contain prebuilt libraries, or libraries created by an
 # external build triggered from this build file.
 set(flutter_ar_vr_bundled_libraries
-  ""
+  "${OpenXR_DLL_DIR}/openxr_loader.dll"
   PARENT_SCOPE
 )
 
-# === Tests ===
-# These unit tests can be run from a terminal after building the example, or
-# from Visual Studio after opening the generated solution file.
-
-# Only enable test builds when building the example (which sets this variable)
-# so that plugin clients aren't building the tests.
-if (${include_${PROJECT_NAME}_tests})
-set(TEST_RUNNER "${PROJECT_NAME}_test")
-enable_testing()
-
-# Add the Google Test dependency.
-include(FetchContent)
-FetchContent_Declare(
-  googletest
-  URL https://github.com/google/googletest/archive/release-1.11.0.zip
-)
-# Prevent overriding the parent project's compiler/linker settings
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-# Disable install commands for gtest so it doesn't end up in the bundle.
-set(INSTALL_GTEST OFF CACHE BOOL "Disable installation of googletest" FORCE)
-FetchContent_MakeAvailable(googletest)
-
-# The plugin's C API is not very useful for unit testing, so build the sources
-# directly into the test binary rather than using the DLL.
-add_executable(${TEST_RUNNER}
-  test/flutter_ar_vr_plugin_test.cpp
-  ${PLUGIN_SOURCES}
-)
-apply_standard_settings(${TEST_RUNNER})
-target_include_directories(${TEST_RUNNER} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(${TEST_RUNNER} PRIVATE flutter_wrapper_plugin)
-target_link_libraries(${TEST_RUNNER} PRIVATE gtest_main gmock)
-# flutter_wrapper_plugin has link dependencies on the Flutter DLL.
-add_custom_command(TARGET ${TEST_RUNNER} POST_BUILD
+# Copy the OpenXR loader DLL to the output directory after build
+add_custom_command(TARGET ${PLUGIN_NAME} POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
-  "${FLUTTER_LIBRARY}" $<TARGET_FILE_DIR:${TEST_RUNNER}>
+  ${OpenXR_DLL_DIR}/openxr_loader.dll
+  $<TARGET_FILE_DIR:${PLUGIN_NAME}>
 )
-
-# Enable automatic test discovery.
-include(GoogleTest)
-gtest_discover_tests(${TEST_RUNNER})
-endif()

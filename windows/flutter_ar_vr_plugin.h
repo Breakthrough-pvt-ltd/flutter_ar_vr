@@ -18,6 +18,9 @@ class FlutterArVrPlugin : public flutter::Plugin {
 
   void InitializeVr(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> &result);
 
+// New method to initialize VR SDK (e.g., OpenXR or another VR SDK)
+  bool InitVrSdk();
+
   // Disallow copy and assign.
   FlutterArVrPlugin(const FlutterArVrPlugin&) = delete;
   FlutterArVrPlugin& operator=(const FlutterArVrPlugin&) = delete;
