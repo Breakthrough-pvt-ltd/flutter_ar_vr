@@ -29,6 +29,14 @@ class FlutterArVrPlugin : public flutter::Plugin {
   void HandleMethodCall(
       const flutter::MethodCall<flutter::EncodableValue> &method_call,
       std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
+  void CreateVrScene(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> &result);
+  void StartVrRendering(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> &result);
+  void CreateBasicCamera();
+  void CreateBasicObjects();
+  
+  void StartRenderingLoop();
+  bool IsVrDeviceConnected();
+  void HandleVrDisconnection();
 };
 
 }  // namespace flutter_ar_vr

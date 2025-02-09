@@ -28,4 +28,22 @@ class MethodChannelFlutterArVr extends FlutterArVrPlatform {
       );
     }
   }
+
+  @override
+  Future<String?> createVrScene() async {
+    try {
+      return await methodChannel.invokeMethod<String>('createVrScene');
+    } on PlatformException catch (e) {
+      throw PlatformException(code: 'VR_SCENE_ERROR', message: e.message);
+    }
+  }
+
+  @override
+  Future<String?> startVrRendering() async {
+    try {
+      return await methodChannel.invokeMethod<String>('startVrRendering');
+    } on PlatformException catch (e) {
+      throw PlatformException(code: 'VR_RENDERING_ERROR', message: e.message);
+    }
+  }
 }

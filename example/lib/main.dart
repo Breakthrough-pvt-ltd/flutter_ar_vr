@@ -56,7 +56,6 @@ class _MyAppState extends State<MyApp> {
       });
     } on PlatformException catch (e) {
       setState(() {
-        print(e);
         _vrStatus = 'Failed to initialize VR: ${e.message}';
       });
     }

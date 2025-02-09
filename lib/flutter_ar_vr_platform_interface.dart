@@ -30,4 +30,7 @@ abstract class FlutterArVrPlatform extends PlatformInterface {
   Future<String?> initializeVr() {
     throw UnimplementedError('initializeVr() has not been implemented.');
   }
+
+  Future<String?> createVrScene();
+  Future<String?> startVrRendering();
 }
