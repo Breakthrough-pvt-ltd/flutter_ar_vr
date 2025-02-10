@@ -12,13 +12,13 @@ class FlutterArVrPlugin : public flutter::Plugin {
  public:
   static void RegisterWithRegistrar(flutter::PluginRegistrarWindows *registrar);
 
-  FlutterArVrPlugin();
+  FlutterArVrPlugin(flutter::PluginRegistrarWindows* registrar);  // Constructor updated
 
   virtual ~FlutterArVrPlugin();
 
   void InitializeVr(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> &result);
 
-// New method to initialize VR SDK (e.g., OpenXR or another VR SDK)
+  // New method to initialize VR SDK (e.g., OpenXR or another VR SDK)
   bool InitVrSdk();
 
   // Disallow copy and assign.
@@ -37,6 +37,10 @@ class FlutterArVrPlugin : public flutter::Plugin {
   void StartRenderingLoop();
   bool IsVrDeviceConnected();
   void HandleVrDisconnection();
+  void SendNotificationToFlutter(const std::string &message);  // Updated to no longer need 'registrar'
+  
+ private:
+  flutter::PluginRegistrarWindows* registrar_;  // Store the registrar
 };
 
 }  // namespace flutter_ar_vr

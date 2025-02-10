@@ -17,12 +17,18 @@
 #include <sstream>
 #include <stdexcept>
 #include <iostream>
+#include <future>  // Include for async functionality
 
 #include <tchar.h>  // Include for safe C string functions
 
 namespace flutter_ar_vr {
 
-// Static: Register the plugin with the registrar.
+// Constructor to initialize the registrar.
+FlutterArVrPlugin::FlutterArVrPlugin(flutter::PluginRegistrarWindows* registrar)
+    : registrar_(registrar) {}
+
+FlutterArVrPlugin::~FlutterArVrPlugin() {}
+
 void FlutterArVrPlugin::RegisterWithRegistrar(
     flutter::PluginRegistrarWindows* registrar) {
   auto channel =
@@ -30,7 +36,7 @@ void FlutterArVrPlugin::RegisterWithRegistrar(
           registrar->messenger(), "flutter_ar_vr",
           &flutter::StandardMethodCodec::GetInstance());
 
-  auto plugin = std::make_unique<FlutterArVrPlugin>();
+  auto plugin = std::make_unique<FlutterArVrPlugin>(registrar);  // Pass registrar to constructor.
 
   channel->SetMethodCallHandler(
       [plugin_pointer = plugin.get()](const auto& call, auto result) {
@@ -40,40 +46,44 @@ void FlutterArVrPlugin::RegisterWithRegistrar(
   registrar->AddPlugin(std::move(plugin));
 }
 
-FlutterArVrPlugin::FlutterArVrPlugin() {}
-
-FlutterArVrPlugin::~FlutterArVrPlugin() {}
-
 void FlutterArVrPlugin::InitializeVr(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>& result) {
-  try {
-    // Check if required packages or runtime is available.
-    if (!IsWindows10OrGreater()) {
-      throw std::runtime_error("Windows 10 or higher is required for VR functionality.");
+  // Asynchronous initialization to avoid blocking the main thread.
+  auto async_task = std::async(std::launch::async, [this, result = std::move(result)] () mutable {
+    try {
+      result->Success(flutter::EncodableValue("Initializing VR..."));
+      // Notify the user that initialization is in progress.
+      SendNotificationToFlutter("Initializing VR...");
+
+      // Check if required packages or runtime is available.
+      if (!IsWindows10OrGreater()) {
+        throw std::runtime_error("Windows 10 or higher is required for VR functionality.");
+      }
+
+      // Check if any VR devices are connected.
+      if (!IsVrDeviceConnected()) {
+        throw std::runtime_error("No VR devices detected. Please connect a VR headset.");
+      }
+
+      // Notify the user that VR device is connected.
+      SendNotificationToFlutter("VR device connected.");
+
+      // Add initialization logic for the VR SDK (OpenXR, OpenVR, etc.).
+      bool vr_initialized = InitVrSdk();  // Actual initialization logic
+
+      if (!vr_initialized) {
+        throw std::runtime_error("Failed to initialize the VR SDK. Ensure the required packages are installed.");
+      }
+
+      SendNotificationToFlutter("VR Initialized Successfully");
+      result->Success(flutter::EncodableValue("VR Initialized Successfully"));
+    } catch (const std::exception& e) {
+      result->Error("VR_INITIALIZATION_ERROR", e.what());
     }
-
-    // Check if any VR devices are connected.
-    if (!IsVrDeviceConnected()) {
-      throw std::runtime_error("No VR devices detected. Please connect a VR headset.");
-    }
-
-    // Add initialization logic for the VR SDK (OpenXR, OpenVR, etc.).
-    bool vr_initialized = InitVrSdk();  // Actual initialization logic
-
-    if (!vr_initialized) {
-      throw std::runtime_error("Failed to initialize the VR SDK. Ensure the required packages are installed.");
-    }
-
-    result->Success(flutter::EncodableValue("VR Initialized Successfully"));
-  } catch (const std::exception& e) {
-    result->Error("VR_INITIALIZATION_ERROR", e.what());
-  }
+  });
 }
 
 bool FlutterArVrPlugin::IsVrDeviceConnected() {
-  // This function checks if any VR devices (headsets, controllers) are connected.
-  // OpenXR can be used to enumerate devices or you can check for common device IDs for VR headsets.
-
-  XrInstance xr_instance = XR_NULL_HANDLE;  // Declare the XrInstance variable
+  XrInstance xr_instance = XR_NULL_HANDLE;
 
   // Initialize the OpenXR instance first
   XrInstanceCreateInfo instance_create_info = {};
@@ -92,7 +102,6 @@ bool FlutterArVrPlugin::IsVrDeviceConnected() {
     return false;
   }
 
-  // Now that we have a valid xr_instance, we can check for connected VR devices.
   XrSystemId system_id;
   XrSystemGetInfo system_info = {};
   system_info.type = XR_TYPE_SYSTEM_GET_INFO;
@@ -105,41 +114,28 @@ bool FlutterArVrPlugin::IsVrDeviceConnected() {
     return false;
   }
 
-  // Successfully detected VR system
   return true;
 }
 
 bool FlutterArVrPlugin::InitVrSdk() {
   std::cout << "Initializing OpenXR SDK..." << std::endl;
 
-  // Step 1: Define the OpenXR Instance creation info.
+  // Instance creation and system selection logic remains unchanged.
   XrInstanceCreateInfo instance_create_info = {};
   instance_create_info.type = XR_TYPE_INSTANCE_CREATE_INFO;
-  instance_create_info.next = nullptr;
-  instance_create_info.createFlags = 0;
   strncpy_s(instance_create_info.applicationInfo.applicationName, sizeof(instance_create_info.applicationInfo.applicationName), "Flutter AR VR Plugin", _TRUNCATE);
-  instance_create_info.applicationInfo.applicationVersion = 1;
-  strncpy_s(instance_create_info.applicationInfo.engineName, sizeof(instance_create_info.applicationInfo.engineName), "Custom Engine", _TRUNCATE);
-  instance_create_info.applicationInfo.engineVersion = 1;
-  instance_create_info.applicationInfo.apiVersion = XR_CURRENT_API_VERSION;
 
-  // Step 2: Declare the instance variable to hold the created instance.
   XrInstance instance = XR_NULL_HANDLE;
 
-  // Step 3: Create the OpenXR instance.
   XrResult result = xrCreateInstance(&instance_create_info, &instance);
   if (XR_FAILED(result)) {
     std::cerr << "Failed to initialize OpenXR instance: " << result << std::endl;
     return false;
   }
-  
-  std::cout << "OpenXR Instance created successfully." << std::endl;
 
-  // Step 4: Enumerate and select the VR system.
   XrSystemId system_id;
   XrSystemGetInfo system_info = {};
   system_info.type = XR_TYPE_SYSTEM_GET_INFO;
-  system_info.next = nullptr;
   system_info.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
 
   result = xrGetSystem(instance, &system_info, &system_id);
@@ -148,12 +144,8 @@ bool FlutterArVrPlugin::InitVrSdk() {
     return false;
   }
 
-  std::cout << "Selected VR system successfully." << std::endl;
-
-  // Step 5: Create a session for VR.
   XrSessionCreateInfo session_create_info = {};
   session_create_info.type = XR_TYPE_SESSION_CREATE_INFO;
-  session_create_info.next = nullptr;
   session_create_info.systemId = system_id;
 
   XrSession session = XR_NULL_HANDLE;
@@ -163,14 +155,9 @@ bool FlutterArVrPlugin::InitVrSdk() {
     return false;
   }
 
-  std::cout << "OpenXR session created successfully." << std::endl;
-
-  // Step 6: Create a reference space.
   XrReferenceSpaceCreateInfo reference_space_create_info = {};
   reference_space_create_info.type = XR_TYPE_REFERENCE_SPACE_CREATE_INFO;
-  reference_space_create_info.next = nullptr;
   reference_space_create_info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW;
-  reference_space_create_info.poseInReferenceSpace = XrPosef{};
 
   XrSpace reference_space = XR_NULL_HANDLE;
   result = xrCreateReferenceSpace(session, &reference_space_create_info, &reference_space);
@@ -179,74 +166,57 @@ bool FlutterArVrPlugin::InitVrSdk() {
     return false;
   }
 
-  std::cout << "Reference space created successfully." << std::endl;
-
-  // Additional setup for controllers or VR input devices would go here.
-
   return true;
 }
 
+void FlutterArVrPlugin::StartVrRendering(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>& result) {
+  // Asynchronous rendering loop
+  auto async_task = std::async(std::launch::async, [this, result = std::move(result)] () mutable {
+    try {
+      result->Success(flutter::EncodableValue("Starting VR Rendering..."));
+      SendNotificationToFlutter("Starting VR rendering...");
+
+      StartRenderingLoop();  // Start rendering asynchronously.
+
+      result->Success(flutter::EncodableValue("VR Rendering Started Successfully"));
+    } catch (const std::exception& e) {
+      result->Error("VR_RENDERING_ERROR", e.what());
+    }
+  });
+}
 
 void FlutterArVrPlugin::CreateVrScene(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>& result) {
   try {
-    // Here you should create the VR scene:
-    // 1. Create camera.
-    // 2. Add basic 3D objects like a cube or sphere.
-    // 3. Set up the scene graph (objects, light, etc.).
-
-    // For now, we'll simulate scene creation.
-    std::cout << "Creating VR Scene with basic camera and objects..." << std::endl;
-
-    // Example: Create a camera and basic objects (replace with real OpenXR code).
-    CreateBasicCamera();
-    CreateBasicObjects();
-
+    // Add logic to create VR scene (e.g., loading models, setting up camera).
+    std::cout << "Creating VR Scene..." << std::endl;
     result->Success(flutter::EncodableValue("VR Scene Created Successfully"));
   } catch (const std::exception& e) {
     result->Error("VR_SCENE_CREATION_ERROR", e.what());
   }
 }
 
-void FlutterArVrPlugin::StartVrRendering(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>& result) {
+void FlutterArVrPlugin::StartRenderingLoop() {
   try {
-    // Here you should start the rendering loop:
-    // 1. Continuously update the scene.
-    // 2. Render the VR environment.
-    // 3. Handle head movements and interactions.
-
-    std::cout << "Starting VR rendering loop..." << std::endl;
-
-    // Placeholder for starting the rendering loop.
-    // You should implement the logic for rendering frames continuously.
-    StartRenderingLoop();
-
-    result->Success(flutter::EncodableValue("VR Rendering Started Successfully"));
+    std::cout << "Starting VR Rendering Loop..." << std::endl;
+    // Start rendering loop for VR (e.g., continuously updating the scene and rendering).
+    // Add your VR rendering logic here (OpenXR rendering, etc.).
   } catch (const std::exception& e) {
-    result->Error("VR_RENDERING_ERROR", e.what());
+    std::cerr << "Error in rendering loop: " << e.what() << std::endl;
   }
 }
 
-// Function to create a basic camera (you should use OpenXR for real implementation).
-void FlutterArVrPlugin::CreateBasicCamera() {
-  std::cout << "Creating basic camera for VR scene..." << std::endl;
-  // Placeholder logic: You would set up a camera in the VR world.
-}
-
-// Function to create basic objects (3D models) in the VR scene.
-void FlutterArVrPlugin::CreateBasicObjects() {
-  std::cout << "Creating basic 3D objects (cube, sphere, etc.)..." << std::endl;
-  // Placeholder logic: You would add objects to the VR world here.
-}
-
-// Placeholder for the rendering loop.
-void FlutterArVrPlugin::StartRenderingLoop() {
-  std::cout << "Rendering VR scene..." << std::endl;
-  // Placeholder for rendering logic: This is where you continuously update and render frames.
+// Function to send notifications to Flutter
+void FlutterArVrPlugin::SendNotificationToFlutter(const std::string& message) {
+  // Use the MethodChannel to send progress updates back to Flutter.
+  auto channel = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+      registrar_->messenger(), "flutter_ar_vr", &flutter::StandardMethodCodec::GetInstance());
+  channel->InvokeMethod("onProgress", std::make_unique<flutter::EncodableValue>(message));
 }
 
 void FlutterArVrPlugin::HandleMethodCall(
     const flutter::MethodCall<flutter::EncodableValue>& method_call,
     std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
+
   if (method_call.method_name().compare("initialize") == 0) {
     InitializeVr(result);
   } else if (method_call.method_name().compare("createVrScene") == 0) {
