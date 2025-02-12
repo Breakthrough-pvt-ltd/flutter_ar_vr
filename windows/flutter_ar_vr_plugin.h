@@ -37,7 +37,6 @@ class FlutterArVrPlugin : public flutter::Plugin {
   void StartRenderingLoop();
   bool IsVrDeviceConnected();
   void HandleVrDisconnection();
-  void SendNotificationToFlutter(const std::string &message);  // Updated to no longer need 'registrar'
   
  private:
   flutter::PluginRegistrarWindows* registrar_;  // Store the registrar

@@ -18,6 +18,7 @@
 #include <stdexcept>
 #include <iostream>
 #include <future>  // Include for async functionality
+#include <string>
 
 #include <tchar.h>  // Include for safe C string functions
 
@@ -46,55 +47,69 @@ void FlutterArVrPlugin::RegisterWithRegistrar(
   registrar->AddPlugin(std::move(plugin));
 }
 
-void FlutterArVrPlugin::InitializeVr(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>& result) {
-  // Asynchronous initialization to avoid blocking the main thread.
-  auto async_task = std::async(std::launch::async, [this, result = std::move(result)] () mutable {
-    try {
-      result->Success(flutter::EncodableValue("Initializing VR..."));
-      // Notify the user that initialization is in progress.
-      SendNotificationToFlutter("Initializing VR...");
+bool isOpenXRInstalled() {
+    HKEY hKey;
+    const std::string registryPath = "SOFTWARE\\Khronos\\OpenXR\\1";
+    const std::string registryKey = "ActiveRuntime";
 
-      // Check if required packages or runtime is available.
-      if (!IsWindows10OrGreater()) {
-        throw std::runtime_error("Windows 10 or higher is required for VR functionality.");
-      }
-
-      // Check if any VR devices are connected.
-      if (!IsVrDeviceConnected()) {
-        throw std::runtime_error("No VR devices detected. Please connect a VR headset.");
-      }
-
-      // Notify the user that VR device is connected.
-      SendNotificationToFlutter("VR device connected.");
-
-      // Add initialization logic for the VR SDK (OpenXR, OpenVR, etc.).
-      bool vr_initialized = InitVrSdk();  // Actual initialization logic
-
-      if (!vr_initialized) {
-        throw std::runtime_error("Failed to initialize the VR SDK. Ensure the required packages are installed.");
-      }
-
-      SendNotificationToFlutter("VR Initialized Successfully");
-      result->Success(flutter::EncodableValue("VR Initialized Successfully"));
-    } catch (const std::exception& e) {
-      result->Error("VR_INITIALIZATION_ERROR", e.what());
+    // Open the registry key
+    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, registryPath.c_str(), 0, KEY_READ, &hKey) != ERROR_SUCCESS) {
+        std::cerr << "Error opening registry key." << std::endl;
+        return false;
     }
-  });
+
+    // Query the "ActiveRuntime" value
+    char runtimePath[MAX_PATH];
+    DWORD bufferSize = sizeof(runtimePath);
+    if (RegQueryValueExA(hKey, registryKey.c_str(), NULL, NULL, (LPBYTE)runtimePath, &bufferSize) != ERROR_SUCCESS) {
+        std::cerr << "Error reading registry value." << std::endl;
+        RegCloseKey(hKey);
+        return false;
+    }
+
+    // Check if a runtime path is found
+    if (strlen(runtimePath) == 0) {
+        std::cerr << "OpenXR runtime not found." << std::endl;
+        RegCloseKey(hKey);
+        return false;
+    }
+
+    std::cout << "OpenXR runtime found at: " << runtimePath << std::endl;
+    RegCloseKey(hKey);
+    return true;
+}
+
+bool initializeOpenXR() {
+    // Step 1: Check if OpenXR is installed
+    if (!isOpenXRInstalled()) {
+        std::cout << "OpenXR not installed. Attempting to install..." << std::endl;
+        // installOpenXR();
+        
+        // You may need to restart the application or prompt the user to restart
+        return false;
+    }
+
+    // Step 2: Initialize OpenXR functionality (add your existing setup here)
+    std::cout << "OpenXR is installed. Proceeding with initialization..." << std::endl;
+
+    // Proceed with your AR/VR setup...
+    return true;
 }
 
 bool FlutterArVrPlugin::IsVrDeviceConnected() {
-  XrInstance xr_instance = XR_NULL_HANDLE;
+  XrInstance xr_instance = XR_NULL_HANDLE;  // Ensure null initialization
 
-  // Initialize the OpenXR instance first
+  // OpenXR instance creation
   XrInstanceCreateInfo instance_create_info = {};
   instance_create_info.type = XR_TYPE_INSTANCE_CREATE_INFO;
   instance_create_info.next = nullptr;
   instance_create_info.createFlags = 0;
-  strncpy_s(instance_create_info.applicationInfo.applicationName, sizeof(instance_create_info.applicationInfo.applicationName), "Flutter AR VR Plugin", _TRUNCATE);
+  
+  strncpy_s(instance_create_info.applicationInfo.applicationName, "Flutter AR VR Plugin", XR_MAX_APPLICATION_NAME_SIZE);
   instance_create_info.applicationInfo.applicationVersion = 1;
-  strncpy_s(instance_create_info.applicationInfo.engineName, sizeof(instance_create_info.applicationInfo.engineName), "Custom Engine", _TRUNCATE);
+  strncpy_s(instance_create_info.applicationInfo.engineName, "Custom Engine", XR_MAX_ENGINE_NAME_SIZE);
   instance_create_info.applicationInfo.engineVersion = 1;
-  instance_create_info.applicationInfo.apiVersion = XR_CURRENT_API_VERSION;
+  instance_create_info.applicationInfo.apiVersion = XR_MAKE_VERSION(1, 0, 0);
 
   XrResult result = xrCreateInstance(&instance_create_info, &xr_instance);
   if (XR_FAILED(result)) {
@@ -102,7 +117,8 @@ bool FlutterArVrPlugin::IsVrDeviceConnected() {
     return false;
   }
 
-  XrSystemId system_id;
+  // VR system detection
+  XrSystemId system_id = XR_NULL_SYSTEM_ID;
   XrSystemGetInfo system_info = {};
   system_info.type = XR_TYPE_SYSTEM_GET_INFO;
   system_info.next = nullptr;
@@ -111,9 +127,14 @@ bool FlutterArVrPlugin::IsVrDeviceConnected() {
   result = xrGetSystem(xr_instance, &system_info, &system_id);
   if (XR_FAILED(result)) {
     std::cerr << "Failed to detect VR system: " << result << std::endl;
+    xrDestroyInstance(xr_instance);  // Clean up before returning
     return false;
   }
 
+  std::cout << "VR Device detected!" << std::endl;
+
+  // Clean up
+  xrDestroyInstance(xr_instance);
   return true;
 }
 
@@ -169,12 +190,41 @@ bool FlutterArVrPlugin::InitVrSdk() {
   return true;
 }
 
+void FlutterArVrPlugin::InitializeVr(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>& result) {
+  auto async_task = std::async(std::launch::async, [this, result = std::move(result)] () mutable {
+    try {
+      // Removed the initial success call
+      if (!initializeOpenXR())
+      {
+        throw std::runtime_error("OpenXR not installed.");
+      }
+      
+      if (!IsWindows10OrGreater()) {
+        throw std::runtime_error("Windows 10 or higher is required for VR functionality.");
+      }
+
+      if (!IsVrDeviceConnected()) {
+        throw std::runtime_error("No VR devices detected. Please connect a VR headset.");
+      }
+
+      bool vr_initialized = InitVrSdk();
+
+      if (!vr_initialized) {
+        throw std::runtime_error("Failed to initialize the VR SDK. Ensure the required packages are installed.");
+      }
+
+      result->Success(flutter::EncodableValue("VR Initialized Successfully"));
+    } catch (const std::exception& e) {
+      result->Error("VR_INITIALIZATION_ERROR", e.what());
+    }
+  });
+}
+
 void FlutterArVrPlugin::StartVrRendering(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>& result) {
   // Asynchronous rendering loop
   auto async_task = std::async(std::launch::async, [this, result = std::move(result)] () mutable {
     try {
       result->Success(flutter::EncodableValue("Starting VR Rendering..."));
-      SendNotificationToFlutter("Starting VR rendering...");
 
       StartRenderingLoop();  // Start rendering asynchronously.
 
@@ -203,14 +253,6 @@ void FlutterArVrPlugin::StartRenderingLoop() {
   } catch (const std::exception& e) {
     std::cerr << "Error in rendering loop: " << e.what() << std::endl;
   }
-}
-
-// Function to send notifications to Flutter
-void FlutterArVrPlugin::SendNotificationToFlutter(const std::string& message) {
-  // Use the MethodChannel to send progress updates back to Flutter.
-  auto channel = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
-      registrar_->messenger(), "flutter_ar_vr", &flutter::StandardMethodCodec::GetInstance());
-  channel->InvokeMethod("onProgress", std::make_unique<flutter::EncodableValue>(message));
 }
 
 void FlutterArVrPlugin::HandleMethodCall(
