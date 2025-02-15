@@ -16,32 +16,13 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  String _platformVersion = 'Unknown';
   String _vrStatus = 'Not Initialized';
   final _flutterArVrPlugin = FlutterArVr();
 
   @override
   void initState() {
     super.initState();
-    initPlatformState();
     initializeVr(); // Call the method to initialize VR
-  }
-
-  // Platform messages are asynchronous, so we initialize in an async method.
-  Future<void> initPlatformState() async {
-    String platformVersion;
-    try {
-      platformVersion = await _flutterArVrPlugin.getPlatformVersion() ??
-          'Unknown platform version';
-    } on PlatformException {
-      platformVersion = 'Failed to get platform version.';
-    }
-
-    if (!mounted) return;
-
-    setState(() {
-      _platformVersion = platformVersion;
-    });
   }
 
   // Method to initialize VR
@@ -72,7 +53,6 @@ class _MyAppState extends State<MyApp> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text('Running on: $_platformVersion\n'),
               Text('VR Status: $_vrStatus\n'),
             ],
           ),

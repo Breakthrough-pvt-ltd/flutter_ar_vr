@@ -10,13 +10,6 @@ class MethodChannelFlutterArVr extends FlutterArVrPlatform {
   final methodChannel = const MethodChannel('flutter_ar_vr');
 
   @override
-  Future<String?> getPlatformVersion() async {
-    final version =
-        await methodChannel.invokeMethod<String>('getPlatformVersion');
-    return version;
-  }
-
-  @override
   Future<String?> initializeVr() async {
     try {
       final result = await methodChannel.invokeMethod<String>('initialize');
